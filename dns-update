@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# chkconfig: 2345 95 20
+# description: dynamically updates dns records in infoblox 
+# processname: dns-update
+
+# mleone: added 20131010 I have no idea why these weren't
+# in here to begin with
+
+shout() { echo "$0: $*" >&2; }
+barf() { shout "$*"; exit 111; }
+safe() { "$@" || barf "cannot $*"; }
+
+
+dns_key=""
+facter_data=/tmp/facter.data
+zone=""
+
+# use /usr/local/bin/facter to obtain ip address
+# Construct a tmp file to make data structure
+/usr/local/bin/facter -p ipaddress_eth0 server_stack server_substack server_tier | sed 's/=>//g' > ${facter_data}
+
+
+
+# do variable dance to set proper hostname
+for i in ipaddress server_stack server_tier server_substack; do
+	  export $i=`grep $i ${facter_data}| awk '{print $2}'`
+done 
+
+
+# declare empty array to make the fqdn dance smart 
+declare -a fqdnarray
+
+# loop through the variables and only add non null elements to array
+for n in ${server_stack} ${server_tier} ${server_substack}; do
+	[ -z $n ] || fqdnarray=("${fqdnarray[@]}" "$n")
+done
+
+# format the domain name
+enfqdn=$(/usr/bin/printf "%s-" "${fqdnarray[@]}")
+fqdnall="${enfqdn%-}.${zone}"
+
+# get the dnsserver name from the system
+#dns_server="`/bin/awk '/nameserver/ {print $2}' /etc/resolv.conf | head -1`"
+dns_server=""
+
+
+# Stole these two functions from Jordans script
+function del_dns_hostname {
+cat<<EOF | /usr/bin/nsupdate -d -k $dns_key -v
+server ${dns_server}
+zone ${zone} 
+update delete ${fqdnall} A ${ipaddress}
+send
+EOF
+}
+
+
+
+function set_dns_hostname {
+cat<<EOF | /usr/bin/nsupdate -d -k $dns_key -v
+server ${dns_server}
+zone ${zone} 
+update add ${fqdnall} 60 A ${ipaddress}
+send
+EOF
+}
+
+function create_pid {
+
+/bin/touch /var/run/dns-update.pid
+}
+
+
+function pid_check {
+
+[ -f /var/run/dns-update.pid ] && /bin/echo "There is a lock obtained on this script exiting" >&2 && exit 111
+}
+
+
+function del_pid {
+[ ! -f /var/run/dns-update.pid ] || /bin/rm /var/run/dns-update.pid
+
+}
+
+################################
+################################
+######### MAIN ################# 
+################################
+################################
+
+
+case $1 in
+	start) pid_check; create_pid; del_dns_hostname; set_dns_hostname
+		;;
+	stop)  del_pid; del_dns_hostname
+		;;
+	restart)
+		del_pid && del_dns_hostname && create_pid && set_dns_hostname
+		;;
+	*)     /bin/echo "Usage : (start|stop)"
+		;;
+
+esac 
+
+
+exit 0
