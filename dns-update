@@ -24,7 +24,7 @@ zone=""
 
 # do variable dance to set proper hostname
 for i in ipaddress server_stack server_tier server_substack; do
-	  export $i=`grep $i ${facter_data}| awk '{print $2}'`
+  export $i=`grep $i ${facter_data}| awk '{print $2}'`
 done 
 
 
@@ -33,7 +33,7 @@ declare -a fqdnarray
 
 # loop through the variables and only add non null elements to array
 for n in ${server_stack} ${server_tier} ${server_substack}; do
-	[ -z $n ] || fqdnarray=("${fqdnarray[@]}" "$n")
+  [ -z $n ] || fqdnarray=("${fqdnarray[@]}" "$n")
 done
 
 # format the domain name
@@ -91,15 +91,15 @@ function del_pid {
 
 
 case $1 in
-	start) pid_check; create_pid; del_dns_hostname; set_dns_hostname
-		;;
-	stop)  del_pid; del_dns_hostname
-		;;
-	restart)
-		del_pid && del_dns_hostname && create_pid && set_dns_hostname
-		;;
-	*)     /bin/echo "Usage : (start|stop)"
-		;;
+  start) pid_check; create_pid; del_dns_hostname; set_dns_hostname
+    ;;
+  stop)  del_pid; del_dns_hostname
+    ;;
+  restart)
+    del_pid && del_dns_hostname && create_pid && set_dns_hostname
+    ;;
+  *)     /bin/echo "Usage : (start|stop)"
+    ;;
 
 esac 
 
